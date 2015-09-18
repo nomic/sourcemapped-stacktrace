@@ -27,7 +27,7 @@ function(source_map_consumer) {
   var mapStackTrace = function(stack, done) {
     var lines = stack.split("\n");
     var mapForUri = {};
-    var rows = {};
+    var rows = [];
 
     var fetcher = new Fetcher(function() {
       var result = [lines[0]].concat(
@@ -37,10 +37,10 @@ function(source_map_consumer) {
 
     // (skip first line containing exception message)
     for (var i=1; i < lines.length; i++) {
-      var fields = lines[i].match(/^ +at.+\((.*):([0-9]+):([0-9]+)/);
-      if (fields.length === 4) {
+      var fields = lines[i].match(/at(.*) \(?(.+):([0-9]+):([0-9]+)/);
+      if (fields && fields.length === 5) {
         rows[i] = fields;
-        var uri = fields[1], line = parseInt(fields[2]), col = parseInt(fields[3], 10);
+        var uri = fields[2], line = parseInt(fields[3]), col = parseInt(fields[4], 10);
         fetcher.fetchScript(uri);
       }
     }
@@ -142,17 +142,18 @@ function(source_map_consumer) {
     for (var i=1; i < lines.length; i++) {
       var row = rows[i];
       if (row) {
-        var uri = row[1];
+        var uri = row[2];
         map = mapForUri[uri];
       }
 
-      if (map) {
+      if (row && map) {
         // from source-map library
         var smc = new source_map_consumer.SourceMapConsumer(map);
         var origPos = smc.originalPositionFor(
-          { line: parseInt(row[2], 10), column: parseInt(row[3], 10) });
-        result.push(formatOriginalPosition(origPos.source,
-          origPos.line, origPos.column, origPos.name));
+          { line: parseInt(row[3], 10), column: parseInt(row[4], 10) });
+        result.push(formatOriginalPosition(
+          origPos.source,
+          origPos.line, origPos.column, origPos.name || row[1]));
       } else {
         // reformat unchanged line for consistency
         result.push(lines[i]);
